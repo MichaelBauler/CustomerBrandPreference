@@ -1,0 +1,259 @@
+###https://rpubs.com/linlinmao/brandpreference
+
+# Title: COURSE 3 TASK 2
+
+# Last update: 2020.10
+
+# File: 
+# Project name: 
+
+######ACER vs SONY Brand Preference Survey###########
+# 0=ACER 1=SONY
+
+
+###Note only feature 100% need to convert to factor is Brand###
+
+# Summarize top model and/or filtered dataset
+# The top model was model_name used with ds_name. 
+
+################
+# Load packages
+################
+
+
+install.packages("caret")
+install.packages("corrplot")
+install.packages("readr")
+install.packages("mlbench")
+install.packages("doMC") 
+install.packages("binr") 
+install.packages("C50")
+
+library(ggplot2)
+library(readr)
+library(ggplot2)
+library(binr)
+library(C50)
+library(caret)
+
+###Note from Video Mike 43:30 min mark
+#example #train Linear Regression model
+#LMFit1 <- train(SolarRad~., data = training, method = "lm", trControl=fitControl)
+
+##############
+# Import data
+###############
+completeresponses <- read.csv("/Users/mikebauler/Desktop/Data.Analytics/C3/surveydata/completeresponses.csv")
+
+###############
+# NOTE TO SELF
+# 1st Build model off of this, then apply our model to the SurveyIncomplete
+# SurveyIncomplete <- read.csv("/Users/mikebauler/Desktop/Data.Analytics/C3/surveydata/SurveyIncomplete.csv")
+###############
+
+################
+# Evaluate data
+################
+
+##--- Dataset 1 ---##
+
+str(completeresponses)
+names(completeresponses)
+head(completeresponses)
+tail(completeresponses)
+# check for missing values 
+anyNA(completeresponses)
+#No NAs
+
+#######################
+# Feature selection
+#######################
+#Reference:  0=Acer 1=Sony
+
+names(completeresponses)
+head(completeresponses)
+#Converting below features to factor
+completeresponses$brand <-as.factor(completeresponses$brand)
+completeresponses$car <- as.factor(completeresponses$car)
+completeresponses$elevel <- as.factor(completeresponses$elevel)
+completeresponses$zipcode <- as.factor(completeresponses$zipcode)
+
+ggplot(completeresponses, aes(x=salary, y=age, col=brand )) + geom_point()
+#There is a relationship between AGE and SALARY
+
+##############################################################
+##############################################################
+#Model Building
+#     C5.0 (manually tuned with 5 different mtry values) using Caret package.
+#     Used 10 folds cross validation to avoid overfitting
+
+# Define an 75%/25% train/test split of the dataset
+inTraining <- createDataPartition(completeresponses$brand, p = .75, list = FALSE)
+training <- completeresponses[inTraining,]
+testing <- completeresponses[-inTraining,]
+
+# 10 fold cross validation 
+fitControl <- trainControl(method = "repeatedcv", number = 10)
+
+# Train C5.0 model with a tuneLenght = 2 
+c50Fit1 <- train(brand~., data = training, method = "C5.0", trControl=fitControl, tuneLength = 2)
+
+# Training results
+c50Fit1 
+
+##7424 samples
+##6 predictor
+##2 classes: '0', '1' 
+
+##No pre-processing
+##Resampling: Cross-Validated (10 fold, repeated 1 times) 
+##Summary of sample sizes: 6681, 6681, 6681, 6682, 6682, 6682, ... 
+##Resampling results across tuning parameters:
+  
+##  model  winnow  trials  Accuracy   Kappa    
+##rules  FALSE    1      0.8220525  0.6380100
+##rules  FALSE   10      0.9213339  0.8316840
+##rules   TRUE    1      0.8213799  0.6363907
+##rules   TRUE   10      0.9217378  0.8327128
+##tree   FALSE    1      0.8220525  0.6380100
+##tree   FALSE   10      0.9187750  0.8268864
+##tree    TRUE    1      0.8213799  0.6363907
+##tree    TRUE   10      0.9199876  0.8297511
+
+##Accuracy was used to select the optimal model using the largest value.
+##The final values used for the model were trials = 10, model = rules and winnow = TRUE.
+
+
+# Check for variable importance 
+C50imp <-varImp(C50) 
+C50imp
+
+##C5.0 variable importance
+
+##only 20 most important variables shown (out of 34)
+
+##Overall
+##salary       100
+##age          100
+##zipcode1       0
+##zipcode8       0
+##car7           0
+
+
+##############################################################
+##############################################################
+#Model Building
+#     Random Forest Model (manually tuned with 5 different mtry values) using Caret package.
+#     Used 10 folds cross validation to avoid overfitting   
+
+# 10 fold cross validation (RandomForest)
+
+fitControl <- trainControl(method = "repeatedcv", number=10, repeats = 1)
+
+# Dataframe for manual tuning of mtry
+rfGrid <- expand.grid(mtry=c(1,2,3,4,5))
+
+# Note the system time wrapper. system.time()
+# This is used to measure process execution time 
+system.time(rfFit1 <- train(brand~., data = training, method = "rf", trControl=fitControl, tuneGrid=rfGrid))
+
+# Training results
+rfFit1 
+
+##Random Forest 
+
+##7424 samples
+##6 predictor
+##2 classes: '0', '1' 
+
+##No pre-processing
+##Resampling: Cross-Validated (10 fold, repeated 1 times) 
+##Summary of sample sizes: 6681, 6682, 6682, 6682, 6681, 6681, ... 
+##Resampling results across tuning parameters:
+  
+##  mtry  Accuracy   Kappa    
+##1     0.6217673  0.0000000
+##2     0.6217673  0.0000000
+##3     0.7260158  0.3356330
+##4     0.8503469  0.6710766
+##5     0.8964121  0.7790267
+
+##Accuracy was used to select the optimal model using the largest value.
+##The final value used for the model was mtry = 5.
+
+# Random Variable Importance
+
+RFimp <-varImp(rfFit1) 
+RFimp
+
+##Overall
+##salary   100.0000
+##age       37.3880
+##credit    19.1682
+##elevel4    0.8746
+##elevel3    0.8567
+##elevel2    0.8510
+##elevel1    0.8306
+##zipcode1   0.4458
+##zipcode5   0.4299
+##zipcode4   0.4056
+##zipcode3   0.3733
+
+
+##############################################################
+##############################################################
+#Apply model to incomplete survey
+##############################################################
+##############################################################
+# Load the incomplete dataset and check the data structure
+SurveyIncomplete <- read.csv("/Users/mikebauler/Desktop/Data.Analytics/C3/surveydata/SurveyIncomplete.csv")
+
+# Change below attributes to factor
+SurveyIncomplete$brand <- as.factor(SurveyIncomplete$brand)
+SurveyIncomplete$elevel <- as.factor(SurveyIncomplete$elevel)
+SurveyIncomplete$car <- as.factor(SurveyIncomplete$car)
+SurveyIncomplete$zipcode <- as.factor(SurveyIncomplete$zipcode)
+
+# Make a prediction based on C50 (SurveyIncomplete)
+prediction <- predict(C50, SurveyIncomplete)
+summary(prediction)
+
+#0    1 
+#1807 3193
+
+# Confusion Matrix 
+confusionMatrix(prediction, SurveyIncomplete$brand)
+
+# PostResample (No Ground Truth lead to Low Accuracy & Kappa value )
+postResample(prediction, SurveyIncomplete$brand)
+
+# Make a prediction based on C50 (25% testing from CompleteResponse)
+prediction_testing <- predict(C50, testing)
+summary(prediction_testing)
+
+##summary(prediction_testing)
+##0    1 
+##903 1571
+
+# Confusion Matrix
+confusionMatrix(prediction_testing, testing$brand)
+
+# PostResample
+postResample(prediction_testing, testing$brand)
+##Accuracy     Kappa 
+##0.9171382 0.8226226 
+
+
+
+answers <- summary(completeresponses$brand) + summary(predictions)
+answers
+
+##############################################################
+##############################################################
+# Interpreting Predictions 
+
+
+
+
+ggplot(predictions_table, aes(x=age, y=salary, col = brand)) + geom_point() +
+  labs(x="Age", y="Salary", title="Relation between Age, Salary, and Brand (Predictions)")
